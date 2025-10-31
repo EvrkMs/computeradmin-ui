@@ -14,7 +14,7 @@ npm run dev
 Отредактируйте `.env` и укажите адрес вашего сервера:
 
 ```
-VITE_API_BASE_URL=https://your-auth-server.com
+VITE_AUTH_API_BASE_URL=https://your-auth-server.com
 ```
 
 Файл `.env` также используется Docker-сборкой и docker-compose — при изменении значений не требуется дублировать их в конфигурации контейнеров.

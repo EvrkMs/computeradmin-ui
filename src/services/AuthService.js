@@ -1,15 +1,17 @@
 import { UserManager, WebStorageStateStore } from 'oidc-client-ts';
 
 class AuthService {
-  constructor(baseUrl) {
-    this.baseUrl = baseUrl || import.meta.env.VITE_API_BASE_URL;
+  constructor(authApiBaseUrl) {
+    const envAuthApiBaseUrl =
+      import.meta.env.VITE_AUTH_API_BASE_URL || import.meta.env.VITE_API_BASE_URL;
+    this.authApiBaseUrl = authApiBaseUrl || envAuthApiBaseUrl;
     this.sessionExpiredHandler = null;
     this.user = null;
 
     const origin =
       typeof window !== 'undefined' && window.location ? window.location.origin : '';
 
-    const authority = import.meta.env.VITE_OIDC_AUTHORITY || this.baseUrl;
+    const authority = import.meta.env.VITE_OIDC_AUTHORITY || this.authApiBaseUrl;
     const clientId = import.meta.env.VITE_OIDC_CLIENT_ID || 'react-spa';
     const redirectUri =
       import.meta.env.VITE_OIDC_REDIRECT_URI || `${origin}/callback`;
@@ -109,7 +111,7 @@ class AuthService {
       credentials: options.credentials || 'include',
     };
 
-    const response = await window.fetch(`${this.baseUrl}${url}`, fetchOptions);
+    const response = await window.fetch(`${this.authApiBaseUrl}${url}`, fetchOptions);
 
     if (response.status === 401) {
       this.handleSessionExpiration();
