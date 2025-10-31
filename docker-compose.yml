@@ -1,0 +1,22 @@
+services:
+  computeradmin-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        DOMAIN: admin.ava-kk.ru
+        SSL_VALID_DAYS: 365
+    image: computeradmin-ui:latest
+    container_name: admin-ui
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    restart: unless-stopped
+    networks:
+      - nginx_network
+
+networks:
+  nginx_network:
+    external: true
+    name: nginx_network
