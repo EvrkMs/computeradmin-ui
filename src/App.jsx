@@ -4,7 +4,7 @@ import AuthService from './services/AuthService';
 import appVersion from './version.json';
 import { primeAssetCache, clearAssetCaches } from './utils/cacheManager';
 import ProfilePage from './pages/ProfilePage';
-import EmployeesPage from './pages/EmployeesPage';
+import EmployeesPage from './pages/employees/EmployeesPage';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';

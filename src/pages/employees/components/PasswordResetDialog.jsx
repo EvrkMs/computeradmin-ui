@@ -14,15 +14,36 @@ import { Label } from '@/components/ui/label';
 const PasswordResetDialog = ({ open, user, onClose, onSubmit }) => {
   const [password, setPassword] = useState('');
   const [requireChange, setRequireChange] = useState(true);
+  const [pending, setPending] = useState(false);
 
-  const handleSubmit = () => {
-    onSubmit(password, requireChange);
+  const handleClose = () => {
     setPassword('');
     setRequireChange(true);
+    setPending(false);
+    onClose();
+  };
+
+  const handleSubmit = async () => {
+    if (pending) return;
+    setPending(true);
+    try {
+      await onSubmit(password, requireChange);
+      setPassword('');
+      setRequireChange(true);
+      setPending(false);
+    } catch {
+      setPending(false);
+    }
+  };
+
+  const handleDialogChange = (nextOpen) => {
+    if (!nextOpen && open) {
+      handleClose();
+    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={handleDialogChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Сброс пароля</DialogTitle>
@@ -48,10 +69,12 @@ const PasswordResetDialog = ({ open, user, onClose, onSubmit }) => {
             <span className="text-sm">Требовать смену пароля при следующем входе</span>
           </label>
           <DialogFooter>
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={handleClose}>
               Отмена
             </Button>
-            <Button onClick={handleSubmit}>Сбросить пароль</Button>
+            <Button onClick={handleSubmit} disabled={pending}>
+              {pending ? 'Сохранение...' : 'Сбросить пароль'}
+            </Button>
           </DialogFooter>
         </div>
       </DialogContent>

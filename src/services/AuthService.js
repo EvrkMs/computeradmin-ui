@@ -145,13 +145,29 @@ class AuthService {
     return error;
   }
 
-  ensureOk(response, fallbackMessage = 'Request failed') {
-    if (!response.ok) {
-      const error = new Error(fallbackMessage);
-      error.status = response.status;
-      return error;
+  async ensureOk(response, fallbackMessage = 'Request failed') {
+    if (response.ok) return;
+
+    let message = fallbackMessage;
+    try {
+      const cloned = response.clone();
+      const contentType = cloned.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await cloned.json();
+        message = this.extractErrorMessage(data, fallbackMessage);
+      } else {
+        const text = await cloned.text();
+        if (text) {
+          message = text;
+        }
+      }
+    } catch {
+      // Ignore parse errors and use fallback
     }
-    return null;
+
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
   }
 
   async restoreSession() {
@@ -160,8 +176,7 @@ class AuthService {
 
   async getUserInfo() {
     const response = await this.fetch('/connect/userinfo');
-    const error = this.ensureOk(response, 'Failed to load user data');
-    if (error) throw error;
+    await this.ensureOk(response, 'Failed to load user data');
     return response.json();
   }
 
@@ -212,16 +227,19 @@ class AuthService {
     if (params.toString()) url += `?${params}`;
 
     const response = await this.fetch(url);
+    await this.ensureOk(response, 'Не удалось загрузить пользователей');
     return response.json();
   }
 
   async getUser(id) {
     const response = await this.fetch(`/api/cruduser/${id}`);
+    await this.ensureOk(response, 'Не удалось загрузить пользователя');
     return response.json();
   }
 
   async getRoles() {
     const response = await this.fetch('/api/cruduser/roles');
+    await this.ensureOk(response, 'Не удалось загрузить роли');
     return response.json();
   }
 
@@ -230,6 +248,25 @@ class AuthService {
       method: 'POST',
       body: JSON.stringify(userData),
     });
+    await this.ensureOk(response, 'Не удалось создать пользователя');
+    return response.json();
+  }
+
+  async updateUser(userId, payload) {
+    const response = await this.fetch(`/api/cruduser/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+    await this.ensureOk(response, 'Не удалось обновить пользователя');
+    return response.json();
+  }
+
+  async createRole(name) {
+    const response = await this.fetch('/api/cruduser/roles', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+    await this.ensureOk(response, 'Не удалось создать роль');
     return response.json();
   }
 
@@ -241,7 +278,8 @@ class AuthService {
         requireChangeOnNextLogin: requireChange,
       }),
     });
-    return response.ok;
+    await this.ensureOk(response, 'Не удалось сбросить пароль');
+    return true;
   }
 
   async login(returnUrl = window.location.href) {
@@ -302,6 +340,26 @@ class AuthService {
   getAuthorizationUrl(path) {
     const trimmedPath = path?.startsWith('/') ? path : `/${path || ''}`;
     return `${this.authorityOrigin}${trimmedPath}`;
+  }
+
+  extractErrorMessage(data, fallback) {
+    if (!data) return fallback;
+    if (typeof data === 'string') return data;
+    if (data.detail && typeof data.detail === 'string') return data.detail;
+    if (data.error_description && typeof data.error_description === 'string') {
+      return data.error_description;
+    }
+    if (data.message && typeof data.message === 'string') return data.message;
+    if (data.title && typeof data.title === 'string') return data.title;
+    if (data.errors && typeof data.errors === 'object') {
+      const messages = Object.values(data.errors)
+        .flat()
+        .filter((item) => typeof item === 'string');
+      if (messages.length > 0) {
+        return messages.join(' ');
+      }
+    }
+    return fallback;
   }
 }
 

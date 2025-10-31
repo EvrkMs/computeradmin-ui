@@ -22,8 +22,9 @@ const CreateUserDialog = ({ open, onClose, onSubmit, roles }) => {
     roles: [],
   });
 
-  const handleSubmit = () => {
-    onSubmit(formData);
+  const [pending, setPending] = useState(false);
+
+  const resetForm = () => {
     setFormData({
       userName: '',
       password: '',
@@ -35,14 +36,35 @@ const CreateUserDialog = ({ open, onClose, onSubmit, roles }) => {
     });
   };
 
+  const handleDialogChange = (nextOpen) => {
+    if (!nextOpen) {
+      resetForm();
+      setPending(false);
+      if (open) {
+        onClose();
+      }
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (pending) return;
+    setPending(true);
+    try {
+      await onSubmit(formData);
+      resetForm();
+    } catch {
+      // Ошибка обрабатывается родительским компонентом
+    } finally {
+      setPending(false);
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={handleDialogChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Добавить сотрудника</DialogTitle>
-          <DialogDescription>
-            Создание нового пользователя в системе
-          </DialogDescription>
+          <DialogDescription>Создание нового пользователя в системе</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div>
@@ -107,10 +129,12 @@ const CreateUserDialog = ({ open, onClose, onSubmit, roles }) => {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={() => handleDialogChange(false)}>
               Отмена
             </Button>
-            <Button onClick={handleSubmit}>Создать</Button>
+            <Button onClick={handleSubmit} disabled={pending}>
+              {pending ? 'Сохранение...' : 'Создать'}
+            </Button>
           </DialogFooter>
         </div>
       </DialogContent>
