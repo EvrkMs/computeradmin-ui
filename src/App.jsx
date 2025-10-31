@@ -59,15 +59,8 @@ const App = () => {
     const listener = (event) => {
       setTheme(event.matches ? 'dark' : 'light');
     };
-    if (typeof media.addEventListener === 'function') {
-      media.addEventListener('change', listener);
-      return () => media.removeEventListener('change', listener);
-    }
-    if (typeof media.addListener === 'function') {
-      media.addListener(listener);
-      return () => media.removeListener(listener);
-    }
-    return undefined;
+    media.addEventListener('change', listener);
+    return () => media.removeEventListener('change', listener);
   }, []);
 
   const toggleTheme = () => {

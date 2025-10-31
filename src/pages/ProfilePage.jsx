@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useEffectEvent } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,7 +34,7 @@ const ProfilePage = () => {
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [sessionsError, setSessionsError] = useState('');
 
-  const loadUserInfo = useCallback(async () => {
+  const loadUserInfo = useEffectEvent(async () => {
     try {
       setUserLoading(true);
       setUserError('');
@@ -46,9 +46,9 @@ const ProfilePage = () => {
     } finally {
       setUserLoading(false);
     }
-  }, [authService]);
+  });
 
-  const loadTelegramInfo = useCallback(async () => {
+  const loadTelegramInfo = useEffectEvent(async () => {
     try {
       setTelegramLoading(true);
       setTelegramError('');
@@ -60,9 +60,9 @@ const ProfilePage = () => {
     } finally {
       setTelegramLoading(false);
     }
-  }, [authService]);
+  });
 
-  const loadSessions = useCallback(async () => {
+  const loadSessions = useEffectEvent(async () => {
     try {
       setSessionsLoading(true);
       setSessionsError('');
@@ -78,13 +78,13 @@ const ProfilePage = () => {
     } finally {
       setSessionsLoading(false);
     }
-  }, [authService]);
+  });
 
   useEffect(() => {
     loadUserInfo();
     loadTelegramInfo();
     loadSessions();
-  }, [loadUserInfo, loadTelegramInfo, loadSessions]);
+  }, [authService]);
 
   const handleUnbindTelegram = async () => {
     try {
