@@ -4,14 +4,27 @@ class AuthService {
   constructor(authApiBaseUrl) {
     const envAuthApiBaseUrl =
       import.meta.env.VITE_AUTH_API_BASE_URL || import.meta.env.VITE_API_BASE_URL;
-    this.authApiBaseUrl = authApiBaseUrl || envAuthApiBaseUrl;
     this.sessionExpiredHandler = null;
     this.user = null;
 
     const origin =
       typeof window !== 'undefined' && window.location ? window.location.origin : '';
 
-    const authority = import.meta.env.VITE_OIDC_AUTHORITY || this.authApiBaseUrl;
+    const toOrigin = (value, base) => {
+      if (!value) return base;
+      try {
+        return new URL(value, base || 'https://placeholder.local').origin;
+      } catch (_) {
+        return base;
+      }
+    };
+
+    const authority =
+      import.meta.env.VITE_OIDC_AUTHORITY || envAuthApiBaseUrl || origin;
+    const authorityOrigin = toOrigin(authority, origin);
+    const resolvedBaseUrl =
+      authApiBaseUrl || envAuthApiBaseUrl || authorityOrigin || origin || '';
+    this.authApiBaseUrl = resolvedBaseUrl.replace(/\/+$/, '');
     const clientId = import.meta.env.VITE_OIDC_CLIENT_ID || 'react-spa';
     const redirectUri =
       import.meta.env.VITE_OIDC_REDIRECT_URI || `${origin}/callback`;

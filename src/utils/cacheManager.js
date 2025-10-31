@@ -24,7 +24,6 @@ const isAllowedHost = (url) => {
 const isApiPath = (pathname) => {
   const lower = pathname.toLowerCase();
   return (
-    lower.startsWith('/auth-proxy') ||
     lower.startsWith('/api') ||
     lower.includes('/connect/')
   );
