@@ -273,9 +273,14 @@ const ProfilePage = () => {
                 </div>
                 <Button
                   onClick={() => {
-                    window.location.href = authService.getAuthorizationUrl(
-                      '/Account/Telegram/TelegramBind',
+                    const currentHref =
+                      typeof window !== 'undefined' && window.location
+                        ? window.location.href
+                        : '/';
+                    const target = authService.getAuthorizationUrl(
+                      `/Account/Telegram/TelegramBind?returnUrl=${encodeURIComponent(currentHref)}`,
                     );
+                    window.location.href = target;
                   }}
                   className="gap-2"
                 >

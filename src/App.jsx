@@ -8,7 +8,7 @@ import EmployeesPage from './pages/employees/EmployeesPage';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { User, Users, LogOut, Moon, Sun } from 'lucide-react';
+import { User, Users, LogOut, Moon, Sun, Loader2 } from 'lucide-react';
 
 const THEME_STORAGE_KEY = 'computeradmin-ui-theme';
 
@@ -21,6 +21,8 @@ const App = () => {
   const [generalError, setGeneralError] = useState('');
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [latestVersion, setLatestVersion] = useState(null);
+  const [authRedirectStarted, setAuthRedirectStarted] = useState(false);
+  const [authRedirectError, setAuthRedirectError] = useState('');
   const versionCheckInterval = 60000;
   const [theme, setTheme] = useState(() => {
     if (typeof window === 'undefined') return 'light';
@@ -201,6 +203,24 @@ const App = () => {
     };
   }, [versionCheckInterval]);
 
+  useEffect(() => {
+    if (authError === 'SESSION_EXPIRED') {
+      if (!authRedirectStarted) {
+        setAuthRedirectStarted(true);
+        setAuthRedirectError('');
+        void authService.login().catch((err) => {
+          console.error('Failed to redirect to auth service:', err);
+          setAuthRedirectError(
+            'Не удалось автоматически перенаправить в систему авторизации. Обновите страницу или попробуйте позже.',
+          );
+        });
+      }
+    } else if (authRedirectStarted || authRedirectError) {
+      setAuthRedirectStarted(false);
+      setAuthRedirectError('');
+    }
+  }, [authError, authService, authRedirectError, authRedirectStarted]);
+
   const handleForceReload = async () => {
     try {
       await clearAssetCaches();
@@ -229,18 +249,20 @@ const App = () => {
             <CardHeader>
               <CardTitle>Сессия истекла</CardTitle>
               <CardDescription>
-                Для продолжения нужно войти в систему авторизации.
+                Для продолжения выполняется перенаправление в систему авторизации.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button
-                className="w-full"
-                onClick={() => {
-                  void authService.login();
-                }}
-              >
-                Войти
-              </Button>
+              {!authRedirectError ? (
+                <div className="flex items-center justify-center gap-2 text-gray-600 dark:text-slate-300">
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  <span>Переадресация...</span>
+                </div>
+              ) : (
+                <Alert variant="destructive">
+                  <AlertDescription>{authRedirectError}</AlertDescription>
+                </Alert>
+              )}
             </CardContent>
           </Card>
         </div>
