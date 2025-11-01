@@ -11,10 +11,27 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { User, Users, LogOut, Moon, Sun, Loader2 } from 'lucide-react';
 
 const THEME_STORAGE_KEY = 'computeradmin-ui-theme';
+const CURRENT_PAGE_STORAGE_KEY = 'computeradmin-ui-current-page';
+const DEFAULT_PAGE = 'profile';
+const EMPLOYEES_PAGE = 'employees';
+const NAV_PAGES = [DEFAULT_PAGE, EMPLOYEES_PAGE];
 
 const App = () => {
   const [authService] = useState(() => new AuthService());
-  const [currentPage, setCurrentPage] = useState('profile');
+  const [currentPage, setCurrentPage] = useState(() => {
+    if (typeof window === 'undefined') {
+      return DEFAULT_PAGE;
+    }
+    try {
+      const stored = window.sessionStorage.getItem(CURRENT_PAGE_STORAGE_KEY);
+      if (typeof stored === 'string' && NAV_PAGES.includes(stored)) {
+        return stored;
+      }
+    } catch {
+      // ignore storage access errors
+    }
+    return DEFAULT_PAGE;
+  });
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
@@ -68,6 +85,17 @@ const App = () => {
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    try {
+      window.sessionStorage.setItem(CURRENT_PAGE_STORAGE_KEY, currentPage);
+    } catch {
+      // ignore storage write errors
+    }
+  }, [currentPage]);
 
   const loadUser = useCallback(async () => {
     try {
@@ -345,17 +373,17 @@ const App = () => {
             {/* Sidebar */}
             <aside className="w-64 space-y-2">
               <Button
-                variant={currentPage === 'profile' ? 'default' : 'ghost'}
+                variant={currentPage === DEFAULT_PAGE ? 'default' : 'ghost'}
                 className="w-full justify-start gap-2"
-                onClick={() => setCurrentPage('profile')}
+                onClick={() => setCurrentPage(DEFAULT_PAGE)}
               >
                 <User className="h-4 w-4" />
                 Профиль
               </Button>
               <Button
-                variant={currentPage === 'employees' ? 'default' : 'ghost'}
+                variant={currentPage === EMPLOYEES_PAGE ? 'default' : 'ghost'}
                 className="w-full justify-start gap-2"
-                onClick={() => setCurrentPage('employees')}
+                onClick={() => setCurrentPage(EMPLOYEES_PAGE)}
               >
                 <Users className="h-4 w-4" />
                 Сотрудники
@@ -364,8 +392,8 @@ const App = () => {
 
             {/* Page Content */}
             <main className="flex-1">
-              {currentPage === 'profile' && <ProfilePage />}
-              {currentPage === 'employees' && <EmployeesPage />}
+              {currentPage === DEFAULT_PAGE && <ProfilePage />}
+              {currentPage === EMPLOYEES_PAGE && <EmployeesPage />}
             </main>
           </div>
         </div>
