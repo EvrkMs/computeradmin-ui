@@ -5,10 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Users, AlertCircle, Plus, Key, Pencil, Shield } from 'lucide-react';
+import { Users, AlertCircle, Plus, Key, Pencil, Shield, Trash2 } from 'lucide-react';
 import CreateUserDialog from './components/CreateUserDialog';
 import PasswordResetDialog from './components/PasswordResetDialog';
 import EditUserDialog from './components/EditUserDialog';
+import EditRoleDialog from './components/EditRoleDialog';
+import RemoveRoleDialog from './components/RemoveRoleDialog';
 
 const TABS = {
   EMPLOYEES: 'employees',
@@ -17,7 +19,7 @@ const TABS = {
 
 const DEFAULT_ROLE_STATE = { status: 'idle', message: '' };
 
-const EmployeesPage = () => {
+const EmployeesPage = ({ canManageUsers, canManageRoles, hasRoleManager }) => {
   const { authService } = useAuth();
   const [activeTab, setActiveTab] = useState(TABS.EMPLOYEES);
   const [users, setUsers] = useState([]);
@@ -33,9 +35,27 @@ const EmployeesPage = () => {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editUser, setEditUser] = useState(null);
   const [newRoleName, setNewRoleName] = useState('');
+  const [showEditRoleDialog, setShowEditRoleDialog] = useState(false);
+  const [roleToEdit, setRoleToEdit] = useState(null);
+  const [showRemoveRoleDialog, setShowRemoveRoleDialog] = useState(false);
+  const [roleToRemove, setRoleToRemove] = useState(null);
   const activeRequestRef = useRef(0);
 
+  const canView = canManageRoles;
+  const roleManagerTooltip = hasRoleManager
+    ? undefined
+    : 'Недостаточно прав: требуется роль RoleManager';
+  const rootTooltip = canManageRoles ? undefined : 'Недостаточно прав: требуется роль Root';
+
   const reloadData = useCallback(async () => {
+    if (!canView) {
+      setUsers([]);
+      setRoles([]);
+      setIsInitialLoad(false);
+      setIsRefreshing(false);
+      return false;
+    }
+
     const requestId = ++activeRequestRef.current;
     setIsRefreshing(true);
     try {
@@ -61,16 +81,25 @@ const EmployeesPage = () => {
         setIsInitialLoad(false);
       }
     }
-  }, [authService, searchQuery, statusFilter]);
+  }, [authService, searchQuery, statusFilter, canView]);
 
   useEffect(() => {
+    if (!canView) {
+      setIsInitialLoad(false);
+      setIsRefreshing(false);
+      return () => {
+        activeRequestRef.current += 1;
+      };
+    }
+
     reloadData();
     return () => {
       activeRequestRef.current += 1;
     };
-  }, [reloadData]);
+  }, [reloadData, canView]);
 
   const handleCreateUser = useCallback(async (userData) => {
+    if (!canManageUsers) return;
     try {
       await authService.createUser(userData);
       setShowCreateDialog(false);
@@ -80,10 +109,10 @@ const EmployeesPage = () => {
       setError(err.message || 'Ошибка создания пользователя');
       throw err;
     }
-  }, [authService, reloadData]);
+  }, [authService, canManageUsers, reloadData]);
 
   const handleResetPassword = useCallback(async (password, requireChange) => {
-    if (!passwordUser) return;
+    if (!passwordUser || !canManageUsers) return;
     try {
       await authService.resetPassword(passwordUser.id, password, requireChange);
       setShowPasswordDialog(false);
@@ -94,10 +123,10 @@ const EmployeesPage = () => {
       setError(err.message || 'Ошибка сброса пароля');
       throw err;
     }
-  }, [authService, passwordUser, reloadData]);
+  }, [authService, passwordUser, canManageUsers, reloadData]);
 
   const handleUpdateUser = useCallback(async (payload) => {
-    if (!editUser) return;
+    if (!editUser || !canManageUsers) return;
     try {
       await authService.updateUser(editUser.id, payload);
       setShowEditDialog(false);
@@ -108,10 +137,14 @@ const EmployeesPage = () => {
       setError(err.message || 'Ошибка обновления пользователя');
       throw err;
     }
-  }, [authService, editUser, reloadData]);
+  }, [authService, editUser, canManageUsers, reloadData]);
 
   const [roleState, createRoleAction, isRolePending] = useActionState(
     async (_prevState, formData) => {
+      if (!canManageRoles) {
+        return { status: 'error', message: 'Недостаточно прав для управления ролями' };
+      }
+
       const name = formData.get('roleName');
       const trimmed = typeof name === 'string' ? name.trim() : '';
       if (!trimmed) {
@@ -130,11 +163,49 @@ const EmployeesPage = () => {
         };
       }
     },
-    DEFAULT_ROLE_STATE
+    DEFAULT_ROLE_STATE,
   );
 
-  const roleError =
-    roleState.status === 'error' ? roleState.message : '';
+  const roleError = roleState.status === 'error' ? roleState.message : '';
+
+  const handleUpdateRole = useCallback(async (name) => {
+    if (!roleToEdit) return;
+    try {
+      await authService.updateRole(roleToEdit.id, name);
+      setShowEditRoleDialog(false);
+      setRoleToEdit(null);
+      setError('');
+      await reloadData();
+    } catch (err) {
+      setError(err.message || 'Ошибка обновления роли');
+      throw err;
+    }
+  }, [authService, roleToEdit, reloadData]);
+
+  const handleRemoveRole = useCallback(async () => {
+    if (!roleToRemove) return;
+    try {
+      await authService.deleteRole(roleToRemove.id);
+      setShowRemoveRoleDialog(false);
+      setRoleToRemove(null);
+      setError('');
+      await reloadData();
+    } catch (err) {
+      setError(err.message || 'Ошибка удаления роли');
+      throw err;
+    }
+  }, [authService, roleToRemove, reloadData]);
+
+  if (!canView) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          Недостаточно прав для просмотра этой страницы. Доступ разрешён только роли Root.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   if (isInitialLoad && isRefreshing) {
     return (
@@ -168,7 +239,16 @@ const EmployeesPage = () => {
                 {activeTab === TABS.EMPLOYEES ? 'Список сотрудников' : 'Управление ролями'}
               </CardTitle>
               {activeTab === TABS.EMPLOYEES && (
-                <Button onClick={() => setShowCreateDialog(true)} className="gap-2">
+                <Button
+                  onClick={() => {
+                    if (canManageUsers) {
+                      setShowCreateDialog(true);
+                    }
+                  }}
+                  className="gap-2"
+                  disabled={!canManageUsers}
+                  title={canManageUsers ? undefined : roleManagerTooltip}
+                >
                   <Plus className="h-4 w-4" />
                   Добавить сотрудника
                 </Button>
@@ -301,10 +381,13 @@ const EmployeesPage = () => {
                               variant="ghost"
                               size="sm"
                               onClick={() => {
+                                if (!canManageUsers) return;
                                 setEditUser(user);
                                 setShowEditDialog(true);
                               }}
                               className="gap-2 text-slate-600 dark:text-slate-300"
+                              disabled={!canManageUsers}
+                              title={canManageUsers ? undefined : roleManagerTooltip}
                             >
                               <Pencil className="h-4 w-4" />
                               Редактировать
@@ -313,10 +396,13 @@ const EmployeesPage = () => {
                               variant="ghost"
                               size="sm"
                               onClick={() => {
+                                if (!canManageUsers) return;
                                 setPasswordUser(user);
                                 setShowPasswordDialog(true);
                               }}
                               className="gap-2 text-slate-600 dark:text-slate-300"
+                              disabled={!canManageUsers}
+                              title={canManageUsers ? undefined : roleManagerTooltip}
                             >
                               <Key className="h-4 w-4" />
                               Сбросить пароль
@@ -352,8 +438,15 @@ const EmployeesPage = () => {
                   placeholder="Название роли"
                   value={newRoleName}
                   onChange={(e) => setNewRoleName(e.target.value)}
+                  disabled={!canManageRoles}
+                  title={canManageRoles ? undefined : rootTooltip}
                 />
-                <Button type="submit" disabled={isRolePending} className="gap-2">
+                <Button
+                  type="submit"
+                  disabled={isRolePending || !canManageRoles}
+                  className="gap-2"
+                  title={canManageRoles ? undefined : rootTooltip}
+                >
                   <Plus className="h-4 w-4" />
                   Создать роль
                 </Button>
@@ -371,9 +464,14 @@ const EmployeesPage = () => {
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-slate-300">
                         Название
                       </th>
-                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-сlate-300">
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-slate-300">
                         Идентификатор
                       </th>
+                      {canManageRoles && (
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-slate-300">
+                          Действия
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-slate-800">
@@ -388,12 +486,46 @@ const EmployeesPage = () => {
                         <td className="px-4 py-3 text-xs text-gray-500 dark:text-slate-400 break-all">
                           {role.id}
                         </td>
+                        {canManageRoles && (
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="gap-2 text-slate-600 dark:text-slate-300"
+                                onClick={() => {
+                                  setRoleToEdit(role);
+                                  setShowEditRoleDialog(true);
+                                }}
+                                disabled={!canManageRoles}
+                                title={rootTooltip}
+                              >
+                                <Pencil className="h-4 w-4" />
+                                Переименовать
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="gap-2 text-red-600 dark:text-red-400"
+                                onClick={() => {
+                                  setRoleToRemove(role);
+                                  setShowRemoveRoleDialog(true);
+                                }}
+                                disabled={!canManageRoles}
+                                title={rootTooltip}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Удалить
+                              </Button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))}
                     {roles.length === 0 && (
                       <tr>
                         <td
-                          colSpan={2}
+                          colSpan={canManageRoles ? 3 : 2}
                           className="px-4 py-6 text-center text-sm text-gray-500 dark:text-slate-400"
                         >
                           Роли не найдены
@@ -414,26 +546,42 @@ const EmployeesPage = () => {
         onSubmit={handleCreateUser}
         roles={roles}
       />
-
+      <PasswordResetDialog
+        open={showPasswordDialog}
+        onClose={() => {
+          setPasswordUser(null);
+          setShowPasswordDialog(false);
+        }}
+        onSubmit={handleResetPassword}
+        user={passwordUser}
+      />
       <EditUserDialog
         open={showEditDialog}
         onClose={() => {
-          setShowEditDialog(false);
           setEditUser(null);
+          setShowEditDialog(false);
         }}
+        onSubmit={handleUpdateUser}
         user={editUser}
         roles={roles}
-        onSubmit={handleUpdateUser}
       />
-
-      <PasswordResetDialog
-        open={showPasswordDialog}
-        user={passwordUser}
+      <EditRoleDialog
+        open={showEditRoleDialog}
+        role={roleToEdit}
         onClose={() => {
-          setShowPasswordDialog(false);
-          setPasswordUser(null);
+          setShowEditRoleDialog(false);
+          setRoleToEdit(null);
         }}
-        onSubmit={handleResetPassword}
+        onSubmit={handleUpdateRole}
+      />
+      <RemoveRoleDialog
+        open={showRemoveRoleDialog}
+        role={roleToRemove}
+        onClose={() => {
+          setShowRemoveRoleDialog(false);
+          setRoleToRemove(null);
+        }}
+        onConfirm={handleRemoveRole}
       />
     </div>
   );

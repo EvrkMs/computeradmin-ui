@@ -25,6 +25,10 @@ class AuthService {
     const resolvedBaseUrl =
       authApiBaseUrl || envAuthApiBaseUrl || authorityOrigin || origin || '';
     this.authApiBaseUrl = resolvedBaseUrl.replace(/\/+$/, '');
+    const safeApiBaseUrl =
+      import.meta.env.VITE_SAFE_API_BASE_URL || null;
+    const resolvedSafeBase = safeApiBaseUrl || resolvedBaseUrl;
+    this.safeApiBaseUrl = resolvedSafeBase.replace(/\/+$/, '');
     const clientId = import.meta.env.VITE_OIDC_CLIENT_ID || 'react-spa';
     const redirectUri =
       import.meta.env.VITE_OIDC_REDIRECT_URI || `${origin}/callback`;
@@ -125,6 +129,34 @@ class AuthService {
     };
 
     const response = await window.fetch(`${this.authApiBaseUrl}${url}`, fetchOptions);
+
+    if (response.status === 401) {
+      this.handleSessionExpiration();
+      throw this.createSessionExpiredError();
+    }
+
+    return response;
+  }
+
+  async safeFetch(path, options = {}) {
+    const user = await this.requireAuthenticatedUser();
+
+    const headers = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
+
+    if (user?.access_token) {
+      headers.Authorization = `Bearer ${user.access_token}`;
+    }
+
+    const fetchOptions = {
+      ...options,
+      headers,
+      credentials: options.credentials || 'include',
+    };
+
+    const response = await window.fetch(`${this.safeApiBaseUrl}${path}`, fetchOptions);
 
     if (response.status === 401) {
       this.handleSessionExpiration();
@@ -270,6 +302,23 @@ class AuthService {
     return response.json();
   }
 
+  async updateRole(roleId, name) {
+    const response = await this.fetch(`/api/cruduser/roles/${roleId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name }),
+    });
+    await this.ensureOk(response, 'Не удалось обновить роль');
+    return response.json();
+  }
+
+  async deleteRole(roleId) {
+    const response = await this.fetch(`/api/cruduser/roles/${roleId}`, {
+      method: 'DELETE',
+    });
+    await this.ensureOk(response, 'Не удалось удалить роль');
+    return true;
+  }
+
   async resetPassword(userId, newPassword, requireChange = true) {
     const response = await this.fetch(`/api/cruduser/${userId}/password`, {
       method: 'POST',
@@ -360,6 +409,44 @@ class AuthService {
       }
     }
     return fallback;
+  }
+
+  async getSafeBalance() {
+    const response = await this.safeFetch('/api/safe/balance');
+    await this.ensureOk(response, 'Не удалось загрузить баланс сейфа');
+    return response.json();
+  }
+
+  async getSafeChanges(query = {}) {
+    const params = new URLSearchParams();
+    if (query.page) params.append('page', String(query.page));
+    if (query.pageSize) params.append('pageSize', String(query.pageSize));
+    if (query.status) params.append('status', query.status);
+    if (query.from) params.append('from', query.from);
+    if (query.to) params.append('to', query.to);
+    const qs = params.toString();
+    const url = `/api/safe/changes${qs ? `?${qs}` : ''}`;
+    const response = await this.safeFetch(url);
+    await this.ensureOk(response, 'Не удалось загрузить операции сейфа');
+    return response.json();
+  }
+
+  async createSafeChange(payload) {
+    const response = await this.safeFetch('/api/safe/changes', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    await this.ensureOk(response, 'Не удалось создать операцию');
+    return response.json();
+  }
+
+  async reverseSafeChange(id, comment) {
+    const response = await this.safeFetch(`/api/safe/changes/${id}/reverse`, {
+      method: 'POST',
+      body: JSON.stringify({ comment }),
+    });
+    await this.ensureOk(response, 'Не удалось выполнить реверс операции');
+    return true;
   }
 }
 

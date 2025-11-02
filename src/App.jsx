@@ -1,20 +1,22 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import AuthContext from './contexts/AuthContext';
 import AuthService from './services/AuthService';
 import appVersion from './version.json';
 import { primeAssetCache, clearAssetCaches } from './utils/cacheManager';
 import ProfilePage from './pages/ProfilePage';
 import EmployeesPage from './pages/employees/EmployeesPage';
+import SafePage from './pages/safe/SafePage';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { User, Users, LogOut, Moon, Sun, Loader2 } from 'lucide-react';
+import { User, Users, LogOut, Moon, Sun, Loader2, PiggyBank } from 'lucide-react';
 
 const THEME_STORAGE_KEY = 'computeradmin-ui-theme';
 const CURRENT_PAGE_STORAGE_KEY = 'computeradmin-ui-current-page';
 const DEFAULT_PAGE = 'profile';
 const EMPLOYEES_PAGE = 'employees';
-const NAV_PAGES = [DEFAULT_PAGE, EMPLOYEES_PAGE];
+const SAFE_PAGE = 'safe';
+const NAV_PAGES = [DEFAULT_PAGE, SAFE_PAGE, EMPLOYEES_PAGE];
 
 const App = () => {
   const [authService] = useState(() => new AuthService());
@@ -259,6 +261,37 @@ const App = () => {
     }
   };
 
+  const normalizedRoles = useMemo(() => {
+    if (!user || !Array.isArray(user.roles)) return [];
+    return user.roles
+      .map((role) => (typeof role === 'string' ? role.trim().toLowerCase() : ''))
+      .filter((role) => role.length > 0);
+  }, [user]);
+
+  const hasRole = useCallback(
+    (role) => normalizedRoles.includes(role.trim().toLowerCase()),
+    [normalizedRoles],
+  );
+
+  const isRoot = hasRole('root');
+  const hasRoleManager = hasRole('rolemanager');
+  const hasSafeManager = hasRole('safemanager');
+
+  const canViewEmployees = isRoot;
+  const canManageUsers = isRoot || hasRoleManager;
+  const canManageRoles = isRoot;
+  const canManageSafe = isRoot || hasSafeManager;
+
+  useEffect(() => {
+    if (!NAV_PAGES.includes(currentPage)) {
+      setCurrentPage(DEFAULT_PAGE);
+      return;
+    }
+    if (!canViewEmployees && currentPage === EMPLOYEES_PAGE) {
+      setCurrentPage(DEFAULT_PAGE);
+    }
+  }, [canViewEmployees, currentPage]);
+
   if (loading) {
     return (
       <AuthContext.Provider value={{ authService, user, reloadUser: loadUser }}>
@@ -381,9 +414,27 @@ const App = () => {
                 Профиль
               </Button>
               <Button
+                variant={currentPage === SAFE_PAGE ? 'default' : 'ghost'}
+                className="w-full justify-start gap-2"
+                onClick={() => setCurrentPage(SAFE_PAGE)}
+              >
+                <PiggyBank className="h-4 w-4" />
+                Сейф
+              </Button>
+              <Button
                 variant={currentPage === EMPLOYEES_PAGE ? 'default' : 'ghost'}
                 className="w-full justify-start gap-2"
-                onClick={() => setCurrentPage(EMPLOYEES_PAGE)}
+                disabled={!canViewEmployees}
+                title={
+                  canViewEmployees
+                    ? undefined
+                    : 'Недостаточно прав: требуется роль Root'
+                }
+                onClick={() => {
+                  if (canViewEmployees) {
+                    setCurrentPage(EMPLOYEES_PAGE);
+                  }
+                }}
               >
                 <Users className="h-4 w-4" />
                 Сотрудники
@@ -393,7 +444,16 @@ const App = () => {
             {/* Page Content */}
             <main className="flex-1">
               {currentPage === DEFAULT_PAGE && <ProfilePage />}
-              {currentPage === EMPLOYEES_PAGE && <EmployeesPage />}
+              {currentPage === SAFE_PAGE && (
+                <SafePage canManageSafe={canManageSafe} />
+              )}
+              {currentPage === EMPLOYEES_PAGE && (
+                <EmployeesPage
+                  canManageUsers={canManageUsers}
+                  canManageRoles={canManageRoles}
+                  hasRoleManager={hasRoleManager}
+                />
+              )}
             </main>
           </div>
         </div>
