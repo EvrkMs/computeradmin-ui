@@ -22,13 +22,21 @@ class AuthService {
     const authority =
       import.meta.env.VITE_OIDC_AUTHORITY || envAuthApiBaseUrl || origin;
     const authorityOrigin = toOrigin(authority, origin);
-    const resolvedBaseUrl =
+    const resolveBase = (url, fallback) => {
+      if (!url) return fallback;
+      try {
+        return new URL(url).origin;
+      } catch {
+        return url.replace(/\/+$/, '');
+      }
+    };
+
+    const resolvedAuthBase =
       authApiBaseUrl || envAuthApiBaseUrl || authorityOrigin || origin || '';
-    this.authApiBaseUrl = resolvedBaseUrl.replace(/\/+$/, '');
-    const safeApiBaseUrl =
-      import.meta.env.VITE_SAFE_API_BASE_URL || null;
-    const resolvedSafeBase = safeApiBaseUrl || resolvedBaseUrl;
-    this.safeApiBaseUrl = resolvedSafeBase.replace(/\/+$/, '');
+    this.authApiBaseUrl = resolvedAuthBase.replace(/\/+$/, '');
+
+    const safeEnvBase = import.meta.env.VITE_SAFE_API_BASE_URL;
+    this.safeApiBaseUrl = resolveBase(safeEnvBase, this.authApiBaseUrl);
     const clientId = import.meta.env.VITE_OIDC_CLIENT_ID || 'react-spa';
     const redirectUri =
       import.meta.env.VITE_OIDC_REDIRECT_URI || `${origin}/callback`;
