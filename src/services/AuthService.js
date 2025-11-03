@@ -167,8 +167,9 @@ class AuthService {
     const response = await window.fetch(`${this.safeApiBaseUrl}${path}`, fetchOptions);
 
     if (response.status === 401) {
-      this.handleSessionExpiration();
-      throw this.createSessionExpiredError();
+      const error = new Error('Safe service request unauthorized');
+      error.status = 401;
+      throw error;
     }
 
     return response;
