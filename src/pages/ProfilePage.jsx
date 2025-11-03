@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useEffectEvent } from 'react';
+import React, { useEffect, useState, useEffectEvent, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -98,6 +98,10 @@ const ProfilePage = () => {
   const handleRevokeSession = async (id) => {
     try {
       await authService.revokeSession(id);
+      setSessions((prev) => prev.filter((session) => session.id !== id));
+      if (currentSession?.id === id) {
+        setCurrentSession(null);
+      }
       await loadSessions();
     } catch (err) {
       setSessionsError('Ошибка отзыва сессии');
@@ -107,11 +111,15 @@ const ProfilePage = () => {
   const handleRevokeAll = async () => {
     try {
       await authService.revokeAllSessions();
+      setSessions((prev) => prev.filter((session) => session.id === currentSession?.id));
       await loadSessions();
     } catch (err) {
       setSessionsError('Ошибка отзыва сессий');
     }
   };
+
+  const activeSessions = useMemo(() => sessions.filter((s) => !s.revoked), [sessions]);
+  const revokedSessions = useMemo(() => sessions.filter((s) => s.revoked), [sessions]);
 
   const showSkeleton = (loading, error, content) => {
     if (loading) {
@@ -329,7 +337,7 @@ const ProfilePage = () => {
             sessionsLoading,
             sessionsError,
             <div className="space-y-3">
-              {sessions.filter((s) => !s.revoked).map((session) => {
+              {activeSessions.map((session) => {
                 const isCurrent = session.id === currentSession?.id || session.isCurrent;
                 return (
                   <div
@@ -377,9 +385,41 @@ const ProfilePage = () => {
                   </div>
                 );
               })}
-              {sessions.filter((s) => !s.revoked).length === 0 && (
+              {activeSessions.length === 0 && (
                 <div className="flex items-center justify-center h-28 text-sm text-gray-500 dark:text-slate-400">
                   Активных сессий нет
+                </div>
+              )}
+              {revokedSessions.length > 0 && (
+                <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Отозванные сессии</p>
+                  {revokedSessions.map((session) => (
+                    <div
+                      key={session.id}
+                      className="p-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/30"
+                    >
+                      <div className="flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-300">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-slate-800 dark:text-slate-200">
+                            {session.device || 'Неизвестное устройство'}
+                          </span>
+                          {session.revokedAt && (
+                            <span>
+                              Отозвана {new Date(session.revokedAt).toLocaleString('ru-RU')}
+                            </span>
+                          )}
+                        </div>
+                        {session.revocationReason && (
+                          <span className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            Причина: {session.revocationReason}
+                          </span>
+                        )}
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          {session.ipAddress || '—'} • {session.userAgent || '—'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>,

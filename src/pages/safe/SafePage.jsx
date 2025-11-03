@@ -90,7 +90,11 @@ const SafePage = ({ canManageSafe }) => {
       setError('');
     } catch (err) {
       console.error('Failed to load safe data', err);
-      setError(err.message || 'Не удалось загрузить данные сейфа');
+      if (err?.code === 'NETWORK_ERROR') {
+        setError('Сервер аутентификации недоступен. Повторите попытку позже.');
+      } else {
+        setError(err.message || 'Не удалось загрузить данные сейфа');
+      }
       setChanges([]);
     } finally {
       setLoading(false);
@@ -111,7 +115,11 @@ const SafePage = ({ canManageSafe }) => {
         setError('');
         await loadData();
       } catch (err) {
-        setError(err.message || 'Не удалось создать операцию');
+        setError(
+          err?.code === 'NETWORK_ERROR'
+            ? 'Сервер аутентификации недоступен. Операция не выполнена.'
+            : err.message || 'Не удалось создать операцию',
+        );
         throw err;
       }
     },
@@ -127,7 +135,11 @@ const SafePage = ({ canManageSafe }) => {
         setError('');
         await loadData();
       } catch (err) {
-        setError(err.message || 'Не удалось выполнить реверс операции');
+        setError(
+          err?.code === 'NETWORK_ERROR'
+            ? 'Сервер аутентификации недоступен. Не удалось выполнить реверс.'
+            : err.message || 'Не удалось выполнить реверс операции',
+        );
         throw err;
       }
     },

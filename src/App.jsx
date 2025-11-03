@@ -110,6 +110,8 @@ const App = () => {
       console.error('Failed to load user:', err);
       if (err?.code === 'SESSION_EXPIRED' || err?.status === 401) {
         setAuthError('SESSION_EXPIRED');
+      } else if (err?.code === 'NETWORK_ERROR') {
+        setGeneralError('Сервер аутентификации недоступен. Попробуйте позже или обратитесь к администратору.');
       } else {
         setGeneralError('Не удалось загрузить данные пользователя');
       }
@@ -399,7 +401,19 @@ const App = () => {
           )}
           {generalError && (
             <Alert variant="destructive" className="mb-6">
-              <AlertDescription>{generalError}</AlertDescription>
+              <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <span>{generalError}</span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    void loadUser();
+                  }}
+                  className="self-start sm:self-auto"
+                >
+                  Повторить запрос
+                </Button>
+              </AlertDescription>
             </Alert>
           )}
           <div className="flex gap-6">

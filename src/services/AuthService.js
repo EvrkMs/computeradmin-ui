@@ -136,7 +136,12 @@ class AuthService {
       credentials: options.credentials || 'include',
     };
 
-    const response = await window.fetch(`${this.authApiBaseUrl}${url}`, fetchOptions);
+    let response;
+    try {
+      response = await window.fetch(`${this.authApiBaseUrl}${url}`, fetchOptions);
+    } catch (err) {
+      throw this.createNetworkError(err);
+    }
 
     if (response.status === 401) {
       this.handleSessionExpiration();
@@ -164,12 +169,16 @@ class AuthService {
       credentials: options.credentials || 'include',
     };
 
-    const response = await window.fetch(`${this.safeApiBaseUrl}${path}`, fetchOptions);
+    let response;
+    try {
+      response = await window.fetch(`${this.safeApiBaseUrl}${path}`, fetchOptions);
+    } catch (err) {
+      throw this.createNetworkError(err);
+    }
 
     if (response.status === 401) {
-      const error = new Error('Safe service request unauthorized');
-      error.status = 401;
-      throw error;
+      this.handleSessionExpiration();
+      throw this.createSessionExpiredError();
     }
 
     return response;
@@ -183,6 +192,13 @@ class AuthService {
     const error = new Error('Session expired');
     error.code = 'SESSION_EXPIRED';
     error.status = 401;
+    return error;
+  }
+
+  createNetworkError(originalError) {
+    const error = new Error('Auth service unavailable');
+    error.code = 'NETWORK_ERROR';
+    error.cause = originalError;
     return error;
   }
 
