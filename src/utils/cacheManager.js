@@ -96,3 +96,40 @@ export async function clearAssetCaches() {
     console.warn('Failed to clear caches:', err);
   }
 }
+
+async function tryServiceWorkerPrime() {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+    return false;
+  }
+  try {
+    const registration = await navigator.serviceWorker.getRegistration();
+    if (!registration?.active) {
+      return false;
+    }
+    registration.active.postMessage({
+      type: 'prime-cache',
+      scope: CACHE_SCOPE,
+    });
+    return true;
+  } catch (err) {
+    console.warn('Failed to delegate cache priming to service worker:', err);
+    return false;
+  }
+}
+
+export function scheduleCachePriming() {
+  if (typeof window === 'undefined') return;
+  const runLocal = () => {
+    void primeAssetCache();
+  };
+  void tryServiceWorkerPrime().then((delegated) => {
+    if (delegated) {
+      return;
+    }
+    if ('requestIdleCallback' in window) {
+      window.requestIdleCallback(runLocal, { timeout: 4000 });
+    } else {
+      window.setTimeout(runLocal, 1000);
+    }
+  });
+}

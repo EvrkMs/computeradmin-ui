@@ -71,17 +71,26 @@ class AuthService {
       silent_redirect_uri: silentRedirectUri,
       response_type: 'code',
       scope,
-      automaticSilentRenew: false,
+      automaticSilentRenew: true,
       monitorSession: false,
       loadUserInfo: false,
       userStore: new WebStorageStateStore({ store: window.sessionStorage }),
     });
 
+    this.manager.events.addAccessTokenExpiring(() => {
+      void this.trySilentRenew();
+    });
     this.manager.events.addAccessTokenExpired(() => {
       this.handleSessionExpiration();
     });
     this.manager.events.addUserUnloaded(() => {
       this.clearTokens();
+    });
+    this.manager.events.addSilentRenewError((error) => {
+      console.error('Silent renew failed:', error);
+      if (error?.error === 'login_required') {
+        this.handleSessionExpiration();
+      }
     });
   }
 
@@ -102,6 +111,16 @@ class AuthService {
     if (stored && !stored.expired) {
       this.applyUser(stored);
       return stored;
+    }
+    if (stored && stored.expired) {
+      try {
+        const renewed = await this.trySilentRenew();
+        if (renewed) {
+          return renewed;
+        }
+      } catch (err) {
+        console.warn('Silent renew during restore failed:', err);
+      }
     }
     this.clearTokens();
     return null;
@@ -229,6 +248,20 @@ class AuthService {
 
   async restoreSession() {
     return this.restoreUser();
+  }
+
+  async trySilentRenew() {
+    try {
+      const user = await this.manager.signinSilent();
+      this.applyUser(user);
+      return user;
+    } catch (error) {
+      if (error?.error === 'login_required' || error?.message?.includes('login_required')) {
+        this.handleSessionExpiration();
+        return null;
+      }
+      throw error;
+    }
   }
 
   async getUserInfo() {

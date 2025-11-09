@@ -36,3 +36,13 @@ export const AlertDescription = React.forwardRef(
 );
 
 AlertDescription.displayName = 'AlertDescription';
+
+export const AlertTitle = React.forwardRef(({ className, ...props }, ref) => (
+  <h3
+    ref={ref}
+    className={cn('text-sm font-semibold leading-none tracking-tight', className)}
+    {...props}
+  />
+));
+
+AlertTitle.displayName = 'AlertTitle';
