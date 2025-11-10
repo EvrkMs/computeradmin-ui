@@ -1,4 +1,5 @@
 import { UserManager, WebStorageStateStore } from 'oidc-client-ts';
+import requestMetricsService from './metrics/RequestMetricsService';
 
 class AuthService {
   constructor(authApiBaseUrl) {
@@ -43,9 +44,6 @@ class AuthService {
     const postLogoutRedirectUri =
       import.meta.env.VITE_OIDC_POST_LOGOUT_REDIRECT_URI ||
       `${origin}/logout-callback`;
-    const silentRedirectUri =
-      import.meta.env.VITE_OIDC_SILENT_REDIRECT_URI ||
-      `${origin}/silent-callback.html`;
     const scope =
       import.meta.env.VITE_OIDC_SCOPE ||
       'openid profile api api:read api:write telegram';
@@ -55,7 +53,6 @@ class AuthService {
       clientId,
       redirectUri,
       postLogoutRedirectUri,
-      silentRedirectUri,
       scope,
     };
 
@@ -68,29 +65,18 @@ class AuthService {
       client_id: clientId,
       redirect_uri: redirectUri,
       post_logout_redirect_uri: postLogoutRedirectUri,
-      silent_redirect_uri: silentRedirectUri,
       response_type: 'code',
       scope,
-      automaticSilentRenew: true,
       monitorSession: false,
       loadUserInfo: false,
       userStore: new WebStorageStateStore({ store: window.sessionStorage }),
     });
 
-    this.manager.events.addAccessTokenExpiring(() => {
-      void this.trySilentRenew();
-    });
     this.manager.events.addAccessTokenExpired(() => {
       this.handleSessionExpiration();
     });
     this.manager.events.addUserUnloaded(() => {
       this.clearTokens();
-    });
-    this.manager.events.addSilentRenewError((error) => {
-      console.error('Silent renew failed:', error);
-      if (error?.error === 'login_required') {
-        this.handleSessionExpiration();
-      }
     });
   }
 
@@ -113,14 +99,8 @@ class AuthService {
       return stored;
     }
     if (stored && stored.expired) {
-      try {
-        const renewed = await this.trySilentRenew();
-        if (renewed) {
-          return renewed;
-        }
-      } catch (err) {
-        console.warn('Silent renew during restore failed:', err);
-      }
+      this.handleSessionExpiration();
+      return null;
     }
     this.clearTokens();
     return null;
@@ -135,6 +115,19 @@ class AuthService {
       return stored;
     }
     throw this.createSessionExpiredError();
+  }
+
+  recordMetric({ scope, url, method, status, ok, duration, error }) {
+    requestMetricsService.addEntry({
+      scope,
+      url,
+      method,
+      status,
+      ok,
+      duration,
+      error,
+      timestamp: Date.now(),
+    });
   }
 
   async fetch(url, options = {}) {
@@ -155,12 +148,35 @@ class AuthService {
       credentials: options.credentials || 'include',
     };
 
+    const method = (fetchOptions.method || 'GET').toUpperCase();
+    const started = typeof performance !== 'undefined' ? performance.now() : Date.now();
+
     let response;
     try {
       response = await window.fetch(`${this.authApiBaseUrl}${url}`, fetchOptions);
     } catch (err) {
+      const duration = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - started;
+      this.recordMetric({
+        scope: 'auth',
+        url,
+        method,
+        status: 'NETWORK',
+        ok: false,
+        duration,
+        error: err?.message || 'Network error',
+      });
       throw this.createNetworkError(err);
     }
+
+    const duration = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - started;
+    this.recordMetric({
+      scope: 'auth',
+      url,
+      method,
+      status: response.status,
+      ok: response.ok,
+      duration,
+    });
 
     if (response.status === 401) {
       this.handleSessionExpiration();
@@ -188,12 +204,35 @@ class AuthService {
       credentials: options.credentials || 'include',
     };
 
+    const method = (fetchOptions.method || 'GET').toUpperCase();
+    const started = typeof performance !== 'undefined' ? performance.now() : Date.now();
+
     let response;
     try {
       response = await window.fetch(`${this.safeApiBaseUrl}${path}`, fetchOptions);
     } catch (err) {
+      const duration = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - started;
+      this.recordMetric({
+        scope: 'safe',
+        url: path,
+        method,
+        status: 'NETWORK',
+        ok: false,
+        duration,
+        error: err?.message || 'Network error',
+      });
       throw this.createNetworkError(err);
     }
+
+    const duration = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - started;
+    this.recordMetric({
+      scope: 'safe',
+      url: path,
+      method,
+      status: response.status,
+      ok: response.ok,
+      duration,
+    });
 
     if (response.status === 401) {
       this.handleSessionExpiration();
@@ -248,20 +287,6 @@ class AuthService {
 
   async restoreSession() {
     return this.restoreUser();
-  }
-
-  async trySilentRenew() {
-    try {
-      const user = await this.manager.signinSilent();
-      this.applyUser(user);
-      return user;
-    } catch (error) {
-      if (error?.error === 'login_required' || error?.message?.includes('login_required')) {
-        this.handleSessionExpiration();
-        return null;
-      }
-      throw error;
-    }
   }
 
   async getUserInfo() {

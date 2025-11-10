@@ -1,9 +1,17 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { LogOut, Moon, Sun, AlertTriangle } from 'lucide-react';
+import { LogOut, Moon, Sun, AlertTriangle, ActivitySquare } from 'lucide-react';
 
-const HeaderBar = ({ title = 'ComputerAdminAuth', userName, theme, onToggleTheme, onLogout, channelError }) => (
+const HeaderBar = ({
+  title = 'ComputerAdminAuth',
+  userName,
+  theme,
+  onToggleTheme,
+  onLogout,
+  channelError,
+  onOpenMetrics,
+}) => (
   <header className="bg-white dark:bg-slate-900 border-b dark:border-slate-800 sticky top-0 z-10 transition-colors">
     <div className="container mx-auto px-4 py-4">
       <div className="flex items-center justify-between">
@@ -18,6 +26,15 @@ const HeaderBar = ({ title = 'ComputerAdminAuth', userName, theme, onToggleTheme
           <span className="text-sm text-gray-600 dark:text-slate-300">
             {userName}
           </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onOpenMetrics}
+            className="gap-2"
+          >
+            <ActivitySquare className="h-4 w-4" />
+            <span className="hidden sm:inline">Метрики</span>
+          </Button>
           <Button
             variant="ghost"
             size="sm"

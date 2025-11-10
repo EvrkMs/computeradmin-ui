@@ -4,6 +4,7 @@ import React, {
   useCallback,
   useMemo,
   Suspense,
+  useRef,
 } from 'react';
 import AuthContext from './contexts/AuthContext';
 import AuthService from './services/AuthService';
@@ -30,6 +31,8 @@ import AppShell from './components/layout/AppShell';
 import HeaderBar from './components/layout/HeaderBar';
 import SidebarNav from './components/layout/SidebarNav';
 import VersionUpdates from './components/version/VersionUpdates';
+import MetricsPanel from './components/metrics/MetricsPanel';
+import { recordSectionLoadMetric } from './services/metrics/PerformanceMetricsService';
 import {
   DEFAULT_PAGE,
   SAFE_PAGE,
@@ -40,6 +43,25 @@ const ProfilePage = React.lazy(() => import('./pages/ProfilePage'));
 const SafePage = React.lazy(() => import('./pages/safe/SafePage'));
 const EmployeesPage = React.lazy(() => import('./pages/employees/EmployeesPage'));
 
+const SectionLoadTracker = ({ page, loadStartsRef, children }) => {
+  useEffect(() => {
+    if (typeof performance === 'undefined') {
+      recordSectionLoadMetric(page, null, { note: 'performance-unavailable' });
+      return;
+    }
+    const started = loadStartsRef.current?.[page];
+    if (typeof started === 'number') {
+      const duration = performance.now() - started;
+      recordSectionLoadMetric(page, duration);
+      delete loadStartsRef.current[page];
+    } else {
+      recordSectionLoadMetric(page, null, { note: 'start-missing' });
+    }
+  }, [page, loadStartsRef]);
+
+  return children;
+};
+
 const App = () => {
   const [authService] = useState(() => new AuthService());
   const [user, setUser] = useState(null);
@@ -49,6 +71,8 @@ const App = () => {
   const [authRedirectStarted, setAuthRedirectStarted] = useState(false);
   const [authRedirectError, setAuthRedirectError] = useState('');
   const [callbackError, setCallbackError] = useState('');
+  const [metricsOpen, setMetricsOpen] = useState(false);
+  const sectionLoadStarts = useRef({});
   const { theme, toggleTheme } = useTheme();
   const { reportError } = useGlobalErrors();
   const {
@@ -231,6 +255,26 @@ const App = () => {
     canViewEmployees: permissions.canViewEmployees,
   });
 
+  const navigateToPage = useCallback(
+    (page) => {
+      if (typeof performance !== 'undefined') {
+        sectionLoadStarts.current[page] = performance.now();
+      }
+      setCurrentPage(page);
+    },
+    [setCurrentPage],
+  );
+
+  useEffect(() => {
+    if (
+      !loading &&
+      typeof performance !== 'undefined' &&
+      sectionLoadStarts.current[currentPage] == null
+    ) {
+      sectionLoadStarts.current[currentPage] = performance.now();
+    }
+  }, [loading, currentPage]);
+
   if (loading) {
     return (
       <AuthContext.Provider value={{ authService, user, reloadUser: loadUser }}>
@@ -285,6 +329,7 @@ const App = () => {
               void authService.logout();
             }}
             channelError={channelError}
+            onOpenMetrics={() => setMetricsOpen(true)}
           />
         )}
         banner={(
@@ -336,7 +381,7 @@ const App = () => {
         sidebar={(
           <SidebarNav
             currentPage={currentPage}
-            onNavigate={setCurrentPage}
+            onNavigate={navigateToPage}
             canViewEmployees={permissions.canViewEmployees}
           />
         )}
@@ -349,18 +394,27 @@ const App = () => {
             </div>
           )}
         >
-          {currentPage === DEFAULT_PAGE && <ProfilePage />}
+          {currentPage === DEFAULT_PAGE && (
+            <SectionLoadTracker page={DEFAULT_PAGE} loadStartsRef={sectionLoadStarts}>
+              <ProfilePage />
+            </SectionLoadTracker>
+          )}
           {currentPage === SAFE_PAGE && (
-            <SafePage canManageSafe={permissions.canManageSafe} />
+            <SectionLoadTracker page={SAFE_PAGE} loadStartsRef={sectionLoadStarts}>
+              <SafePage canManageSafe={permissions.canManageSafe} />
+            </SectionLoadTracker>
           )}
           {currentPage === EMPLOYEES_PAGE && (
-            <EmployeesPage
-              canManageUsers={permissions.canManageUsers}
-              canManageRoles={permissions.canManageRoles}
-              hasRoleManager={permissions.hasRoleManager}
-            />
+            <SectionLoadTracker page={EMPLOYEES_PAGE} loadStartsRef={sectionLoadStarts}>
+              <EmployeesPage
+                canManageUsers={permissions.canManageUsers}
+                canManageRoles={permissions.canManageRoles}
+                hasRoleManager={permissions.hasRoleManager}
+              />
+            </SectionLoadTracker>
           )}
         </Suspense>
+        <MetricsPanel open={metricsOpen} onOpenChange={setMetricsOpen} />
       </AppShell>
     </AuthContext.Provider>
   );
