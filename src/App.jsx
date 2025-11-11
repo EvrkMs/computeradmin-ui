@@ -8,10 +8,6 @@ import React, {
 } from 'react';
 import AuthContext from './contexts/AuthContext';
 import AuthService from './services/AuthService';
-import {
-  scheduleCachePriming,
-  clearAssetCaches,
-} from './utils/cacheManager';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Card,
@@ -166,7 +162,6 @@ const App = () => {
 
         if (!cancelled) {
           await loadUser();
-          scheduleCachePriming();
         }
       } catch (err) {
         console.error('Authentication bootstrap failed:', err);
@@ -213,16 +208,9 @@ const App = () => {
     }
   }, [authError, authService, authRedirectError, authRedirectStarted, reportError]);
 
-  const handleForceReload = useCallback(async () => {
-    try {
-      await clearAssetCaches();
-    } catch (err) {
-      console.warn('Failed to clear caches before reload:', err);
-      reportError(err, { hint: 'Не удалось очистить кеш перед обновлением' });
-    } finally {
-      window.location.reload();
-    }
-  }, [reportError]);
+  const handleForceReload = useCallback(() => {
+    window.location.reload();
+  }, []);
 
   const normalizedRoles = useMemo(() => {
     if (!user || !Array.isArray(user.roles)) return [];
