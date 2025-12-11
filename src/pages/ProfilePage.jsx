@@ -87,10 +87,7 @@ const ProfilePage = () => {
   }, [authService]);
 
   const handleUnbindTelegram = () => {
-    const returnUrl = window.location.href;
-    const target = authService.getAuthorizationUrl(
-      `/Account/Telegram/Unbind?returnUrl=${encodeURIComponent(returnUrl)}`,
-    );
+    const target = authService.getTelegramFlowUrl('/Account/Telegram/Unbind');
     window.location.href = target;
   };
 
@@ -278,19 +275,13 @@ const ProfilePage = () => {
                   <XCircle className="h-5 w-5 text-gray-400 dark:text-slate-500" />
                   <p className="text-gray-600 dark:text-slate-300">Telegram не привязан</p>
                 </div>
-                <Button
-                  onClick={() => {
-                    const currentHref =
-                      typeof window !== 'undefined' && window.location
-                        ? window.location.href
-                        : '/';
-                    const target = authService.getAuthorizationUrl(
-                      `/Account/Telegram/Bind?returnUrl=${encodeURIComponent(currentHref)}`,
-                    );
-                    window.location.href = target;
-                  }}
-                  className="gap-2"
-                >
+                    <Button
+                      onClick={() => {
+                        const target = authService.getTelegramFlowUrl('/Account/Telegram/Bind');
+                        window.location.href = target;
+                      }}
+                      className="gap-2"
+                    >
                   <LinkIcon className="h-4 w-4" />
                   Привязать Telegram
                 </Button>

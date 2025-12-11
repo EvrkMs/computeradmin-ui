@@ -471,9 +471,24 @@ class AuthService {
     this.user = null;
   }
 
-  getAuthorizationUrl(path) {
+  getAuthorizationUrl(path, params = {}) {
     const trimmedPath = path?.startsWith('/') ? path : `/${path || ''}`;
-    return `${this.authorityOrigin}${trimmedPath}`;
+    const url = new URL(`${this.authorityOrigin}${trimmedPath}`);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value != null) {
+        url.searchParams.set(key, value);
+      }
+    });
+    return url.toString();
+  }
+
+  getTelegramFlowUrl(path, returnUrl) {
+    const baseReturnUrl = returnUrl || this.oidcConfig.redirectUri;
+
+    return this.getAuthorizationUrl(path, {
+      returnUrl: baseReturnUrl,
+      client_id: this.oidcConfig.clientId,
+    });
   }
 
   extractErrorMessage(data, fallback) {
