@@ -59,6 +59,9 @@ const PasswordResetDialog = ({ open, user, onClose, onSubmit }) => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Минимум 6 символов, содержит строчную и заглавную буквы, цифру и спецсимвол.
+            </p>
           </div>
           <label className="flex items-center gap-2">
             <input

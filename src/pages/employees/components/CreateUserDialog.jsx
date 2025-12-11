@@ -16,8 +16,6 @@ const CreateUserDialog = ({ open, onClose, onSubmit, roles }) => {
     userName: '',
     password: '',
     fullName: '',
-    email: '',
-    phoneNumber: '',
     status: 'Active',
     roles: [],
   });
@@ -29,8 +27,6 @@ const CreateUserDialog = ({ open, onClose, onSubmit, roles }) => {
       userName: '',
       password: '',
       fullName: '',
-      email: '',
-      phoneNumber: '',
       status: 'Active',
       roles: [],
     });
@@ -81,27 +77,15 @@ const CreateUserDialog = ({ open, onClose, onSubmit, roles }) => {
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
             />
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Минимум 6 символов, содержит строчную и заглавную буквы, цифру и спецсимвол.
+            </p>
           </div>
           <div>
             <Label>Полное имя *</Label>
             <Input
               value={formData.fullName}
               onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-            />
-          </div>
-          <div>
-            <Label>Email</Label>
-            <Input
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            />
-          </div>
-          <div>
-            <Label>Телефон</Label>
-            <Input
-              value={formData.phoneNumber}
-              onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
             />
           </div>
           <div>

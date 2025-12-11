@@ -86,13 +86,12 @@ const ProfilePage = () => {
     loadSessions();
   }, [authService]);
 
-  const handleUnbindTelegram = async () => {
-    try {
-      await authService.unbindTelegram();
-      await loadTelegramInfo();
-    } catch (err) {
-      setTelegramError('Ошибка отвязки Telegram');
-    }
+  const handleUnbindTelegram = () => {
+    const returnUrl = window.location.href;
+    const target = authService.getAuthorizationUrl(
+      `/Account/Telegram/Unbind?returnUrl=${encodeURIComponent(returnUrl)}`,
+    );
+    window.location.href = target;
   };
 
   const handleRevokeSession = async (id) => {
@@ -259,12 +258,12 @@ const ProfilePage = () => {
                       )}
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleUnbindTelegram}
-                    className="gap-2 dark:border-slate-700 dark:text-slate-100"
-                  >
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleUnbindTelegram}
+                className="gap-2 dark:border-slate-700 dark:text-slate-100"
+              >
                     <Unlink className="h-4 w-4" />
                     Отвязать
                   </Button>
@@ -286,7 +285,7 @@ const ProfilePage = () => {
                         ? window.location.href
                         : '/';
                     const target = authService.getAuthorizationUrl(
-                      `/Account/Telegram/TelegramBind?returnUrl=${encodeURIComponent(currentHref)}`,
+                      `/Account/Telegram/Bind?returnUrl=${encodeURIComponent(currentHref)}`,
                     );
                     window.location.href = target;
                   }}

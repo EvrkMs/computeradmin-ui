@@ -327,11 +327,13 @@ class AuthService {
     return null;
   }
 
-  async unbindTelegram() {
+  async unbindTelegram(password) {
     const response = await this.fetch('/api/telegram/unbind', {
       method: 'POST',
+      body: JSON.stringify({ password }),
     });
-    return response.json();
+    await this.ensureOk(response, 'Не удалось отвязать Telegram');
+    return true;
   }
 
   async getUsers(query = '', status = '') {
