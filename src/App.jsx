@@ -34,10 +34,12 @@ import {
   SAFE_PAGE,
   EMPLOYEES_PAGE,
 } from './constants/navigation';
+import ErrorBoundary from './components/errors/ErrorBoundary';
+import withRetry from './lib/retryLazy';
 
-const ProfilePage = React.lazy(() => import('./pages/ProfilePage'));
-const SafePage = React.lazy(() => import('./pages/safe/SafePage'));
-const EmployeesPage = React.lazy(() => import('./pages/employees/EmployeesPage'));
+const ProfilePage = withRetry(() => import('./pages/profile/ProfilePage'));
+const SafePage = withRetry(() => import('./pages/safe/SafePage'));
+const EmployeesPage = withRetry(() => import('./pages/employees/EmployeesPage'));
 
 const SectionLoadTracker = ({ page, loadStartsRef, children }) => {
   useEffect(() => {
@@ -374,34 +376,36 @@ const App = () => {
           />
         )}
       >
-        <Suspense
-          fallback={(
-            <div className="flex items-center justify-center py-20 text-gray-500">
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              Загрузка секции...
-            </div>
-          )}
-        >
-          {currentPage === DEFAULT_PAGE && (
-            <SectionLoadTracker page={DEFAULT_PAGE} loadStartsRef={sectionLoadStarts}>
-              <ProfilePage />
-            </SectionLoadTracker>
-          )}
-          {currentPage === SAFE_PAGE && (
-            <SectionLoadTracker page={SAFE_PAGE} loadStartsRef={sectionLoadStarts}>
-              <SafePage canManageSafe={permissions.canManageSafe} />
-            </SectionLoadTracker>
-          )}
-          {currentPage === EMPLOYEES_PAGE && (
-            <SectionLoadTracker page={EMPLOYEES_PAGE} loadStartsRef={sectionLoadStarts}>
-              <EmployeesPage
-                canManageUsers={permissions.canManageUsers}
-                canManageRoles={permissions.canManageRoles}
-                hasRoleManager={permissions.hasRoleManager}
-              />
-            </SectionLoadTracker>
-          )}
-        </Suspense>
+        <ErrorBoundary onRetry={() => window.location.reload()}>
+          <Suspense
+            fallback={(
+              <div className="flex items-center justify-center py-20 text-gray-500">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Загрузка секции...
+              </div>
+            )}
+          >
+            {currentPage === DEFAULT_PAGE && (
+              <SectionLoadTracker page={DEFAULT_PAGE} loadStartsRef={sectionLoadStarts}>
+                <ProfilePage />
+              </SectionLoadTracker>
+            )}
+            {currentPage === SAFE_PAGE && (
+              <SectionLoadTracker page={SAFE_PAGE} loadStartsRef={sectionLoadStarts}>
+                <SafePage canManageSafe={permissions.canManageSafe} />
+              </SectionLoadTracker>
+            )}
+            {currentPage === EMPLOYEES_PAGE && (
+              <SectionLoadTracker page={EMPLOYEES_PAGE} loadStartsRef={sectionLoadStarts}>
+                <EmployeesPage
+                  canManageUsers={permissions.canManageUsers}
+                  canManageRoles={permissions.canManageRoles}
+                  hasRoleManager={permissions.hasRoleManager}
+                />
+              </SectionLoadTracker>
+            )}
+          </Suspense>
+        </ErrorBoundary>
         <MetricsPanel open={metricsOpen} onOpenChange={setMetricsOpen} />
       </AppShell>
     </AuthContext.Provider>

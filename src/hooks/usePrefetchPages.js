@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
 const PAGE_LOADERS = [
-  () => import('@/pages/ProfilePage'),
+  () => import('@/pages/profile/ProfilePage'),
   () => import('@/pages/safe/SafePage'),
   () => import('@/pages/employees/EmployeesPage'),
 ];

@@ -1,5 +1,6 @@
 import { UserManager, WebStorageStateStore } from 'oidc-client-ts';
 import requestMetricsService from './metrics/RequestMetricsService';
+import ApiClient from './auth/apiClient';
 
 class AuthService {
   constructor(authApiBaseUrl) {
@@ -78,6 +79,11 @@ class AuthService {
     this.manager.events.addUserUnloaded(() => {
       this.clearTokens();
     });
+
+    this.csrfToken = null;
+
+    this.authApi = this.createApiClient(this.authApiBaseUrl, 'auth');
+    this.safeApi = this.createApiClient(this.safeApiBaseUrl, 'safe');
   }
 
   handleSessionExpiration() {
@@ -131,115 +137,11 @@ class AuthService {
   }
 
   async fetch(url, options = {}) {
-    const user = await this.requireAuthenticatedUser();
-
-    const headers = {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    };
-
-    if (user?.access_token) {
-      headers.Authorization = `Bearer ${user.access_token}`;
-    }
-
-    const fetchOptions = {
-      ...options,
-      headers,
-      credentials: options.credentials || 'include',
-    };
-
-    const method = (fetchOptions.method || 'GET').toUpperCase();
-    const started = typeof performance !== 'undefined' ? performance.now() : Date.now();
-
-    let response;
-    try {
-      response = await window.fetch(`${this.authApiBaseUrl}${url}`, fetchOptions);
-    } catch (err) {
-      const duration = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - started;
-      this.recordMetric({
-        scope: 'auth',
-        url,
-        method,
-        status: 'NETWORK',
-        ok: false,
-        duration,
-        error: err?.message || 'Network error',
-      });
-      throw this.createNetworkError(err);
-    }
-
-    const duration = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - started;
-    this.recordMetric({
-      scope: 'auth',
-      url,
-      method,
-      status: response.status,
-      ok: response.ok,
-      duration,
-    });
-
-    if (response.status === 401) {
-      this.handleSessionExpiration();
-      throw this.createSessionExpiredError();
-    }
-
-    return response;
+    return this.authApi.request(url, options);
   }
 
   async safeFetch(path, options = {}) {
-    const user = await this.requireAuthenticatedUser();
-
-    const headers = {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    };
-
-    if (user?.access_token) {
-      headers.Authorization = `Bearer ${user.access_token}`;
-    }
-
-    const fetchOptions = {
-      ...options,
-      headers,
-      credentials: options.credentials || 'include',
-    };
-
-    const method = (fetchOptions.method || 'GET').toUpperCase();
-    const started = typeof performance !== 'undefined' ? performance.now() : Date.now();
-
-    let response;
-    try {
-      response = await window.fetch(`${this.safeApiBaseUrl}${path}`, fetchOptions);
-    } catch (err) {
-      const duration = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - started;
-      this.recordMetric({
-        scope: 'safe',
-        url: path,
-        method,
-        status: 'NETWORK',
-        ok: false,
-        duration,
-        error: err?.message || 'Network error',
-      });
-      throw this.createNetworkError(err);
-    }
-
-    const duration = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - started;
-    this.recordMetric({
-      scope: 'safe',
-      url: path,
-      method,
-      status: response.status,
-      ok: response.ok,
-      duration,
-    });
-
-    if (response.status === 401) {
-      this.handleSessionExpiration();
-      throw this.createSessionExpiredError();
-    }
-
-    return response;
+    return this.safeApi.request(path, options);
   }
 
   onSessionExpired(handler) {
@@ -471,6 +373,32 @@ class AuthService {
     this.user = null;
   }
 
+  async ensureCsrfToken() {
+    if (this.csrfToken) return this.csrfToken;
+    // пробуем достать из куки
+    if (typeof document !== 'undefined') {
+      const match = document.cookie.match(/(?:^|;\s*)__Host-af=([^;]+)/);
+      if (match) {
+        this.csrfToken = decodeURIComponent(match[1]);
+        return this.csrfToken;
+      }
+    }
+
+    try {
+      const response = await fetch(`${this.authApiBaseUrl}/api/antiforgery/token`, {
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        return null;
+      }
+      const data = await response.json();
+      this.csrfToken = data?.token || null;
+      return this.csrfToken;
+    } catch {
+      return null;
+    }
+  }
+
   getAuthorizationUrl(path, params = {}) {
     const trimmedPath = path?.startsWith('/') ? path : `/${path || ''}`;
     const url = new URL(`${this.authorityOrigin}${trimmedPath}`);
@@ -547,6 +475,19 @@ class AuthService {
     });
     await this.ensureOk(response, 'Не удалось выполнить реверс операции');
     return true;
+  }
+
+  createApiClient(baseUrl, scope) {
+    return new ApiClient({
+      baseUrl,
+      scope,
+      ensureUser: () => this.requireAuthenticatedUser(),
+      ensureCsrfToken: () => this.ensureCsrfToken(),
+      recordMetric: (entry) => this.recordMetric(entry),
+      handleSessionExpiration: () => this.handleSessionExpiration(),
+      createNetworkError: (err) => this.createNetworkError(err),
+      createSessionExpiredError: () => this.createSessionExpiredError(),
+    });
   }
 }
 

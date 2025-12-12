@@ -1,7 +1,4 @@
 import React from 'react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { AlertCircle } from 'lucide-react';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -14,46 +11,37 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, info) {
-    console.error('Application crashed:', error, info);
+    // eslint-disable-next-line no-console
+    console.error('ErrorBoundary caught:', error, info);
   }
 
-  handleReset = () => {
+  handleRetry = () => {
     this.setState({ hasError: false, error: null });
-    if (typeof this.props.onReset === 'function') {
-      this.props.onReset();
+    if (typeof this.props.onRetry === 'function') {
+      this.props.onRetry();
     }
   };
 
   render() {
-    if (!this.state.hasError) {
-      return this.props.children;
+    if (this.state.hasError) {
+      return (
+        <div className="p-4 border rounded-md border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+          <div className="font-medium mb-2">Произошла ошибка загрузки.</div>
+          <div className="text-sm mb-3 break-words">
+            {this.state.error?.message || 'Попробуйте обновить страницу.'}
+          </div>
+          <button
+            type="button"
+            onClick={this.handleRetry}
+            className="px-3 py-2 rounded-md bg-red-600 text-white text-sm"
+          >
+            Повторить
+          </button>
+        </div>
+      );
     }
 
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-950 px-4">
-        <Card className="w-full max-w-xl">
-          <CardHeader className="space-y-2">
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-red-600" />
-              Упс! Что-то пошло не так
-            </CardTitle>
-            <CardDescription>
-              Интерфейс столкнулся с ошибкой. Вы можете обновить страницу или попробовать снова.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {this.state.error?.message && (
-              <pre className="text-sm bg-slate-900/5 dark:bg-slate-900/40 p-3 rounded border border-slate-200 dark:border-slate-800 overflow-auto">
-                {this.state.error.message}
-              </pre>
-            )}
-            <Button onClick={this.handleReset} className="w-full sm:w-auto">
-              Попробовать снова
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return this.props.children;
   }
 }
 
