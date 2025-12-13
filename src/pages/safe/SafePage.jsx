@@ -79,15 +79,29 @@ const SafePage = ({ canManageSafe }) => {
   const loadData = useCallback(async () => {
     setRefreshing(true);
     try {
-      const [balanceData, changesData] = await Promise.all([
+      const [balanceData, changesData] = await Promise.allSettled([
         authService.getSafeBalance(),
         authService.getSafeChanges(filters),
       ]);
 
-      setBalance(balanceData?.balance ?? 0);
-      setChanges(changesData?.items ?? []);
-      setTotal(changesData?.total ?? 0);
-      setError('');
+      if (balanceData.status === 'fulfilled') {
+        setBalance(balanceData.value?.balance ?? 0);
+      }
+      if (changesData.status === 'fulfilled') {
+        setChanges(changesData.value?.items ?? []);
+        setTotal(changesData.value?.total ?? 0);
+      }
+
+      if (balanceData.status === 'rejected' || changesData.status === 'rejected') {
+        const err = balanceData.reason ?? changesData.reason;
+        if (err?.code === 'NETWORK_ERROR') {
+          setError('Сервер аутентификации недоступен. Повторите попытку позже.');
+        } else {
+          setError(err?.message || 'Не удалось загрузить данные сейфа');
+        }
+      } else {
+        setError('');
+      }
     } catch (err) {
       console.error('Failed to load safe data', err);
       if (err?.code === 'NETWORK_ERROR') {

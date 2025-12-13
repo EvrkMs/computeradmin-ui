@@ -1,6 +1,9 @@
 import { UserManager, WebStorageStateStore } from 'oidc-client-ts';
 import requestMetricsService from './metrics/RequestMetricsService';
 import ApiClient from './auth/apiClient';
+import { createAccountApi } from './auth/accountApi';
+import { createUserManagementApi } from './auth/userManagementApi';
+import { createSafeApi } from './auth/safeApi';
 
 class AuthService {
   constructor(authApiBaseUrl) {
@@ -84,6 +87,11 @@ class AuthService {
 
     this.authApi = this.createApiClient(this.authApiBaseUrl, 'auth');
     this.safeApi = this.createApiClient(this.safeApiBaseUrl, 'safe');
+
+    // Разделяем по областям, чтобы сам сервис был компактнее
+    this.accountApi = createAccountApi(this.authApi);
+    this.userManagementApi = createUserManagementApi(this.authApi);
+    this.safeApiClient = createSafeApi(this.safeApi);
   }
 
   handleSessionExpiration() {
@@ -162,160 +170,72 @@ class AuthService {
     return error;
   }
 
-  async ensureOk(response, fallbackMessage = 'Request failed') {
-    if (response.ok) return;
-
-    let message = fallbackMessage;
-    try {
-      const cloned = response.clone();
-      const contentType = cloned.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        const data = await cloned.json();
-        message = this.extractErrorMessage(data, fallbackMessage);
-      } else {
-        const text = await cloned.text();
-        if (text) {
-          message = text;
-        }
-      }
-    } catch {
-      // Ignore parse errors and use fallback
-    }
-
-    const error = new Error(message);
-    error.status = response.status;
-    throw error;
-  }
-
   async restoreSession() {
     return this.restoreUser();
   }
 
   async getUserInfo() {
-    const response = await this.fetch('/connect/userinfo');
-    await this.ensureOk(response, 'Failed to load user data');
-    return response.json();
+    return this.accountApi.getUserInfo();
   }
 
   async getSessions(all = false) {
-    const response = await this.fetch(`/api/sessions${all ? '?all=true' : ''}`);
-    return response.json();
+    return this.accountApi.getSessions(all);
   }
 
   async getCurrentSession() {
-    const response = await this.fetch('/api/sessions/current');
-    return response.json();
+    return this.accountApi.getCurrentSession();
   }
 
   async revokeSession(id) {
-    const response = await this.fetch(`/api/sessions/${id}/revoke`, {
-      method: 'POST',
-    });
-    return response.ok;
+    return this.accountApi.revokeSession(id);
   }
 
   async revokeAllSessions() {
-    const response = await this.fetch('/api/sessions/revoke-all', {
-      method: 'POST',
-    });
-    return response.json();
+    return this.accountApi.revokeAllSessions();
   }
 
   async getTelegramInfo() {
-    const response = await this.fetch('/api/telegram/me');
-    if (response.ok) {
-      return response.json();
-    }
-    return null;
+    return this.accountApi.getTelegramInfo();
   }
 
   async unbindTelegram(password) {
-    const response = await this.fetch('/api/telegram/unbind', {
-      method: 'POST',
-      body: JSON.stringify({ password }),
-    });
-    await this.ensureOk(response, 'Не удалось отвязать Telegram');
-    return true;
+    return this.accountApi.unbindTelegram(password);
   }
 
   async getUsers(query = '', status = '') {
-    let url = '/api/cruduser';
-    const params = new URLSearchParams();
-    if (query) params.append('query', query);
-    if (status) params.append('status', status);
-    if (params.toString()) url += `?${params}`;
-
-    const response = await this.fetch(url);
-    await this.ensureOk(response, 'Не удалось загрузить пользователей');
-    return response.json();
+    return this.userManagementApi.getUsers(query, status);
   }
 
   async getUser(id) {
-    const response = await this.fetch(`/api/cruduser/${id}`);
-    await this.ensureOk(response, 'Не удалось загрузить пользователя');
-    return response.json();
+    return this.userManagementApi.getUser(id);
   }
 
   async getRoles() {
-    const response = await this.fetch('/api/cruduser/roles');
-    await this.ensureOk(response, 'Не удалось загрузить роли');
-    return response.json();
+    return this.userManagementApi.getRoles();
   }
 
   async createUser(userData) {
-    const response = await this.fetch('/api/cruduser', {
-      method: 'POST',
-      body: JSON.stringify(userData),
-    });
-    await this.ensureOk(response, 'Не удалось создать пользователя');
-    return response.json();
+    return this.userManagementApi.createUser(userData);
   }
 
   async updateUser(userId, payload) {
-    const response = await this.fetch(`/api/cruduser/${userId}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    });
-    await this.ensureOk(response, 'Не удалось обновить пользователя');
-    return response.json();
+    return this.userManagementApi.updateUser(userId, payload);
   }
 
   async createRole(name) {
-    const response = await this.fetch('/api/cruduser/roles', {
-      method: 'POST',
-      body: JSON.stringify({ name }),
-    });
-    await this.ensureOk(response, 'Не удалось создать роль');
-    return response.json();
+    return this.userManagementApi.createRole(name);
   }
 
   async updateRole(roleId, name) {
-    const response = await this.fetch(`/api/cruduser/roles/${roleId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ name }),
-    });
-    await this.ensureOk(response, 'Не удалось обновить роль');
-    return response.json();
+    return this.userManagementApi.updateRole(roleId, name);
   }
 
   async deleteRole(roleId) {
-    const response = await this.fetch(`/api/cruduser/roles/${roleId}`, {
-      method: 'DELETE',
-    });
-    await this.ensureOk(response, 'Не удалось удалить роль');
-    return true;
+    return this.userManagementApi.deleteRole(roleId);
   }
 
   async resetPassword(userId, newPassword, requireChange = true) {
-    const response = await this.fetch(`/api/cruduser/${userId}/password`, {
-      method: 'POST',
-      body: JSON.stringify({
-        newPassword,
-        requireChangeOnNextLogin: requireChange,
-      }),
-    });
-    await this.ensureOk(response, 'Не удалось сбросить пароль');
-    return true;
+    return this.userManagementApi.resetPassword(userId, newPassword, requireChange);
   }
 
   async login(returnUrl = window.location.href) {
@@ -419,62 +339,20 @@ class AuthService {
     });
   }
 
-  extractErrorMessage(data, fallback) {
-    if (!data) return fallback;
-    if (typeof data === 'string') return data;
-    if (data.detail && typeof data.detail === 'string') return data.detail;
-    if (data.error_description && typeof data.error_description === 'string') {
-      return data.error_description;
-    }
-    if (data.message && typeof data.message === 'string') return data.message;
-    if (data.title && typeof data.title === 'string') return data.title;
-    if (data.errors && typeof data.errors === 'object') {
-      const messages = Object.values(data.errors)
-        .flat()
-        .filter((item) => typeof item === 'string');
-      if (messages.length > 0) {
-        return messages.join(' ');
-      }
-    }
-    return fallback;
-  }
-
   async getSafeBalance() {
-    const response = await this.safeFetch('/api/safe/balance');
-    await this.ensureOk(response, 'Не удалось загрузить баланс сейфа');
-    return response.json();
+    return this.safeApiClient.getSafeBalance();
   }
 
   async getSafeChanges(query = {}) {
-    const params = new URLSearchParams();
-    if (query.page) params.append('page', String(query.page));
-    if (query.pageSize) params.append('pageSize', String(query.pageSize));
-    if (query.status) params.append('status', query.status);
-    if (query.from) params.append('from', query.from);
-    if (query.to) params.append('to', query.to);
-    const qs = params.toString();
-    const url = `/api/safe/changes${qs ? `?${qs}` : ''}`;
-    const response = await this.safeFetch(url);
-    await this.ensureOk(response, 'Не удалось загрузить операции сейфа');
-    return response.json();
+    return this.safeApiClient.getSafeChanges(query);
   }
 
   async createSafeChange(payload) {
-    const response = await this.safeFetch('/api/safe/changes', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-    await this.ensureOk(response, 'Не удалось создать операцию');
-    return response.json();
+    return this.safeApiClient.createSafeChange(payload);
   }
 
   async reverseSafeChange(id, comment) {
-    const response = await this.safeFetch(`/api/safe/changes/${id}/reverse`, {
-      method: 'POST',
-      body: JSON.stringify({ comment }),
-    });
-    await this.ensureOk(response, 'Не удалось выполнить реверс операции');
-    return true;
+    return this.safeApiClient.reverseSafeChange(id, comment);
   }
 
   createApiClient(baseUrl, scope) {

@@ -4,6 +4,9 @@ import App from './App';
 import './index.css';
 import ErrorBoundary from './components/errors/ErrorBoundary';
 import { GlobalErrorProvider } from './contexts/GlobalErrorContext';
+import { installGlobalFetchMetrics } from './services/metrics/installGlobalFetchMetrics';
+
+installGlobalFetchMetrics();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

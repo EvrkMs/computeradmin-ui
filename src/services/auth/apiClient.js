@@ -41,6 +41,7 @@ export class ApiClient {
       ...options,
       headers,
       credentials: options.credentials || 'include',
+      __skipGlobalMetrics: true,
     };
 
     const methodUsed = (fetchOptions.method || 'GET').toUpperCase();
