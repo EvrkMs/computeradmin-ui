@@ -50,7 +50,7 @@ class AuthService {
       `${origin}/logout-callback`;
     const scope =
       import.meta.env.VITE_OIDC_SCOPE ||
-      'openid profile api api:read api:write telegram';
+      'openid profile offline_access api api:read api:write telegram safe:read safe:write';
 
     this.oidcConfig = {
       authority,
